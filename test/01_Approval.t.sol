@@ -48,18 +48,14 @@ contract ApprovalTest is Base {
         assertEq(token.balanceOf(address(escrow)), 0, "nothing left in escrow");
     }
 
-    /// 결재선은 이메일로 받은 서류 A 를 보고 서명했는데, 수출사가 체인에 올린 건 B 였다.
-    /// 서명 내용에 docHash 가 들어가므로 A 에 한 서명은 B 거래에서 결재선 서명으로 인정되지 않는다.
-    function test_Fix_SignatureIsBoundToDocument() public {
+    /// 결재선이 빨리 처리하려고 서류가 올라오기 전에 미리 서명해 뒀다. 그 뒤 수출사가 서류 B 를 올린다.
+    /// 서명 내용에 docHash 가 들어가므로, 서류 없이 한 서명은 B 에 대한 승인이 되지 않는다.
+    /// (처음 쓴 테스트는 서명 내용을 테스트 안에서 직접 만들어서, docHash 검사를 지워도 통과했다. README 트러블슈팅 참고)
+    function test_Fix_PresignedApprovalDoesNotCoverLaterDocument() public {
         uint256 id = _create();
-        _submit(id, DOC_B);
+        bytes[] memory sigs = _signTwo(escrow.releaseDigest(id), 0, 1); // 서류가 아직 없을 때의 digest
 
-        bytes32 digestForA = keccak256(
-            abi.encodePacked(
-                "\x19\x01", escrow.DOMAIN_SEPARATOR(), keccak256(abi.encode(escrow.RELEASE_TYPEHASH(), id, DOC_A))
-            )
-        );
-        bytes[] memory sigs = _signTwo(digestForA, 0, 1);
+        _submit(id, DOC_B);
 
         // 다른 내용에서 복원한 주소는 결재선이 아니다
         vm.expectRevert("NOT_APPROVER");
